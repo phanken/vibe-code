@@ -13,8 +13,8 @@ function esc(s=''){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt
 async function checkHealth(){
   try{
     const h=await api('/api/health');
-    $('#providerStatus').textContent=h.gemini_configured?`${h.model} • API OK`:'Thiếu GEMINI_API_KEY';
-    document.querySelector('.sidebar-foot .dot').classList.toggle('warn',!h.gemini_configured);
+    $('#providerStatus').textContent=h.groq_configured?`${h.model} • API OK`:'Thiếu GROQ_API_KEY';
+    document.querySelector('.sidebar-foot .dot').classList.toggle('warn',!h.groq_configured);
   }catch(e){$('#providerStatus').textContent='Không kết nối được backend';}
 }
 
@@ -51,10 +51,10 @@ function actionMeta(m){
 function renderMessages(messages){
   const box=$('#messages');
   if(!messages.length){
-    box.innerHTML='<div class="empty"><div class="spark">✦</div><h2>Chat & vibe code</h2><p>Hỏi Gemini bình thường hoặc bảo nó tạo/sửa web. AI sẽ tự chọn khi nào cần thay đổi file.</p></div>';
+    box.innerHTML='<div class="empty"><div class="spark">✦</div><h2>Chat & vibe code</h2><p>Hỏi Groq bình thường hoặc bảo nó tạo/sửa web. AI sẽ tự chọn khi nào cần thay đổi file.</p></div>';
     return;
   }
-  box.innerHTML=messages.map(m=>`<div class="message ${m.role}"><div class="role">${m.role==='user'?'Bạn':'Gemini'}</div>${actionMeta(m)}<div class="message-text">${esc(m.content)}</div></div>`).join('');
+  box.innerHTML=messages.map(m=>`<div class="message ${m.role}"><div class="role">${m.role==='user'?'Bạn':'Groq'}</div>${actionMeta(m)}<div class="message-text">${esc(m.content)}</div></div>`).join('');
   box.scrollTop=box.scrollHeight;
 }
 
@@ -92,7 +92,7 @@ $('#chatForm').onsubmit=async(e)=>{
   const message=$('#prompt').value.trim(); if(!message)return;
   const p=await api(`/api/projects/${state.projectId}`);
   renderMessages([...(p.messages||[]),{role:'user',content:message},{role:'assistant',content:'Đang suy nghĩ…'}]);
-  $('#prompt').value=''; $('#prompt').disabled=true; $('#sendBtn').disabled=true; $('#status').textContent='Gemini đang xử lý…';
+  $('#prompt').value=''; $('#prompt').disabled=true; $('#sendBtn').disabled=true; $('#status').textContent='Groq đang xử lý…';
   try{
     const d=await api(`/api/projects/${state.projectId}/chat`,{method:'POST',body:JSON.stringify({message})});
     const updated=await api(`/api/projects/${state.projectId}`);
@@ -100,9 +100,9 @@ $('#chatForm').onsubmit=async(e)=>{
     if(d.action==='build'){
       refreshPreview();
       const n=(d.written||[]).length+(d.deleted||[]).length;
-      $('#status').textContent=`Đã sửa project${n?` • ${n} thay đổi`:''} • ${d.model||'Gemini'}`;
+      $('#status').textContent=`Đã sửa project${n?` • ${n} thay đổi`:''} • ${d.model||'Groq'}`;
     }else{
-      $('#status').textContent=`Đã trả lời • ${d.model||'Gemini'}`;
+      $('#status').textContent=`Đã trả lời • ${d.model||'Groq'}`;
     }
   }catch(err){alert(err.message);$('#status').textContent='Có lỗi';}
   finally{$('#prompt').disabled=false;$('#sendBtn').disabled=false;$('#prompt').focus();}

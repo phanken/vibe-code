@@ -19,9 +19,9 @@ STATIC_DIR = BASE_DIR / "static"
 WORKSPACES_DIR = Path(os.getenv("WORKSPACES_DIR", str(BASE_DIR / "workspaces"))).resolve()
 WORKSPACES_DIR.mkdir(parents=True, exist_ok=True)
 AGENT_TIMEOUT = int(os.getenv("AGENT_TIMEOUT", "180"))
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.6-flash")
+GROQ_MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
 
-app = FastAPI(title="Gemini Vibe Web", version="0.3.0")
+app = FastAPI(title="Groq Vibe Web", version="0.4.0")
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 
@@ -100,10 +100,10 @@ def home():
 def health():
     return {
         "ok": True,
-        "provider": "Google Gemini API",
-        "model": GEMINI_MODEL,
-        "fallback_models": os.getenv("GEMINI_FALLBACK_MODELS", "gemini-3.7-flash,gemini-3.5-flash,gemini-3.5-flash-lite"),
-        "gemini_configured": bool(os.getenv("GEMINI_API_KEY", "").strip()),
+        "provider": "Groq API",
+        "model": GROQ_MODEL,
+        "fallback_models": os.getenv("GROQ_FALLBACK_MODELS", "openai/gpt-oss-20b"),
+        "groq_configured": bool(os.getenv("GROQ_API_KEY", "").strip()),
     }
 
 
@@ -192,8 +192,8 @@ def chat(project_id: str, body: ChatBody):
     workspace = project_dir(project_id)
     if not workspace.exists():
         raise HTTPException(404, "Không tìm thấy project")
-    if not os.getenv("GEMINI_API_KEY", "").strip():
-        raise HTTPException(503, "Chưa cấu hình GEMINI_API_KEY trên server")
+    if not os.getenv("GROQ_API_KEY", "").strip():
+        raise HTTPException(503, "Chưa cấu hình GROQ_API_KEY trên server")
 
     meta = load_meta(project_id)
     history = meta.get("messages", [])[-8:]
@@ -202,7 +202,7 @@ def chat(project_id: str, body: ChatBody):
     if history_text:
         prompt = f"Ngữ cảnh chat gần đây:\n{history_text}\n\nYêu cầu mới:\n{body.message}"
 
-    cmd = [sys.executable, str(BASE_DIR / "gemini_worker.py"), str(workspace), prompt]
+    cmd = [sys.executable, str(BASE_DIR / "groq_worker.py"), str(workspace), prompt]
     try:
         proc = subprocess.run(
             cmd,
@@ -213,7 +213,7 @@ def chat(project_id: str, body: ChatBody):
             env=os.environ.copy(),
         )
     except subprocess.TimeoutExpired:
-        raise HTTPException(504, "Gemini chạy quá thời gian cho phép")
+        raise HTTPException(504, "Groq chạy quá thời gian cho phép")
 
     lines = [x.strip() for x in proc.stdout.splitlines() if x.strip()]
     payload = None
@@ -230,7 +230,7 @@ def chat(project_id: str, body: ChatBody):
     if not payload.get("ok"):
         code = payload.get("status_code")
         http_status = code if isinstance(code, int) and 400 <= code <= 599 else 500
-        raise HTTPException(http_status, payload.get("error", "Gemini API lỗi"))
+        raise HTTPException(http_status, payload.get("error", "Groq API lỗi"))
 
     answer = payload.get("text", "Đã xử lý xong.")
     action = payload.get("action", "chat")
@@ -244,7 +244,7 @@ def chat(project_id: str, body: ChatBody):
             "action": action,
             "written": written,
             "deleted": deleted,
-            "model": payload.get("model", GEMINI_MODEL),
+            "model": payload.get("model", GROQ_MODEL),
         },
     ])
     meta["messages"] = meta["messages"][-40:]
@@ -253,7 +253,7 @@ def chat(project_id: str, body: ChatBody):
         "ok": True,
         "answer": answer,
         "action": action,
-        "model": payload.get("model", GEMINI_MODEL),
+        "model": payload.get("model", GROQ_MODEL),
         "written": written,
         "deleted": deleted,
         "files": list_files(workspace),

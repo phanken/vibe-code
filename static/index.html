@@ -3,32 +3,32 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Gemini Vibe Web</title>
+  <title>Groq Vibe Web</title>
   <link rel="stylesheet" href="/static/style.css" />
 </head>
 <body>
 <div class="app">
   <aside class="sidebar">
-    <div class="brand"><span class="logo">G</span><div><b>Gemini</b><small>Vibe Web</small></div></div>
+    <div class="brand"><span class="logo">G</span><div><b>Groq</b><small>Vibe Web</small></div></div>
     <button id="newProject" class="primary full">＋ Project mới</button>
     <div class="section-label">PROJECTS</div>
     <div id="projects" class="projects"></div>
-    <div class="sidebar-foot"><span class="dot"></span><span id="providerStatus">Đang kiểm tra Gemini…</span></div>
+    <div class="sidebar-foot"><span class="dot"></span><span id="providerStatus">Đang kiểm tra Groq…</span></div>
   </aside>
 
   <main class="chat-panel">
     <header>
-      <div><h1 id="projectTitle">Chọn project</h1><p>Trò chuyện bình thường hoặc yêu cầu Gemini sửa project</p></div>
+      <div><h1 id="projectTitle">Chọn project</h1><p>Trò chuyện bình thường hoặc yêu cầu AI sửa project</p></div>
       <div class="header-actions">
         <button id="downloadProject" class="ghost" disabled>Tải ZIP</button>
         <button id="deleteProject" class="ghost danger" disabled>Xóa</button>
       </div>
     </header>
     <div id="messages" class="messages">
-      <div class="empty"><div class="spark">✦</div><h2>Chat & vibe code</h2><p>Hỏi bất cứ điều gì hoặc nói “tạo/sửa/thêm…” để Gemini tự cập nhật project.</p></div>
+      <div class="empty"><div class="spark">✦</div><h2>Chat & vibe code</h2><p>Hỏi bất cứ điều gì hoặc nói “tạo/sửa/thêm…” để AI tự cập nhật project.</p></div>
     </div>
     <form id="chatForm" class="composer">
-      <textarea id="prompt" placeholder="Nhắn với Gemini hoặc yêu cầu tạo/sửa code..." rows="3" disabled></textarea>
+      <textarea id="prompt" placeholder="Nhắn với Groq hoặc yêu cầu tạo/sửa code..." rows="3" disabled></textarea>
       <div class="composer-bottom"><span id="status">Chưa chọn project</span><button class="primary" id="sendBtn" disabled>Gửi ↗</button></div>
     </form>
   </main>
