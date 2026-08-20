@@ -45,9 +45,10 @@ Start Command: uvicorn app:app --host 0.0.0.0 --port $PORT
 GROQ_MODEL=openai/gpt-oss-120b
 GROQ_FALLBACK_MODELS=openai/gpt-oss-20b
 GROQ_RETRIES_PER_MODEL=2
-GROQ_MAX_OUTPUT_TOKENS=32768
+GROQ_MAX_OUTPUT_TOKENS=3800
+GROQ_REASONING_EFFORT=low
 AGENT_TIMEOUT=180
-MAX_PROJECT_CONTEXT=220000
+MAX_PROJECT_CONTEXT=8000
 ```
 
 ## Chạy local
@@ -67,3 +68,8 @@ Mở `http://127.0.0.1:8000`.
 ## Lưu ý Render Free
 
 Workspace nằm trên filesystem local của service nên có thể mất sau restart/redeploy. Hãy dùng nút **Tải ZIP** để sao lưu. Muốn lưu lâu dài cần thêm GitHub/MongoDB/object storage.
+
+
+## Free tier / lỗi 413 TPM
+
+Groq Free hiện giới hạn GPT-OSS 120B/20B khoảng 8K tokens/phút. Bản này đặt output 3,800 token và context project 8,000 ký tự để một request thông thường nằm dưới giới hạn. Nếu Render đã có Environment cũ, hãy sửa `GROQ_MAX_OUTPUT_TOKENS=3800` và `MAX_PROJECT_CONTEXT=8000` vì biến trên Render sẽ ghi đè `render.yaml`.

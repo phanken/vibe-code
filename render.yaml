@@ -17,8 +17,10 @@ services:
       - key: GROQ_RETRIES_PER_MODEL
         value: "2"
       - key: GROQ_MAX_OUTPUT_TOKENS
-        value: "32768"
+        value: "3800"
+      - key: GROQ_REASONING_EFFORT
+        value: low
       - key: AGENT_TIMEOUT
         value: "180"
       - key: MAX_PROJECT_CONTEXT
-        value: "220000"
+        value: "8000"

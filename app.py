@@ -21,7 +21,7 @@ WORKSPACES_DIR.mkdir(parents=True, exist_ok=True)
 AGENT_TIMEOUT = int(os.getenv("AGENT_TIMEOUT", "180"))
 GROQ_MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
 
-app = FastAPI(title="Groq Vibe Web", version="0.4.0")
+app = FastAPI(title="Groq Vibe Web", version="0.4.1")
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 
@@ -196,7 +196,7 @@ def chat(project_id: str, body: ChatBody):
         raise HTTPException(503, "Chưa cấu hình GROQ_API_KEY trên server")
 
     meta = load_meta(project_id)
-    history = meta.get("messages", [])[-8:]
+    history = meta.get("messages", [])[-4:]
     history_text = "\n".join(f"{m.get('role')}: {m.get('content')}" for m in history)
     prompt = body.message
     if history_text:

@@ -16,7 +16,7 @@ TEXT_EXTENSIONS = {
     ".svg", ".xml", ".yaml", ".yml", ".toml", ".py", ".ts", ".tsx", ".jsx",
 }
 IGNORED_PARTS = {".git", "node_modules", ".venv", "__pycache__", "dist", "build"}
-MAX_CONTEXT_CHARS = int(os.getenv("MAX_PROJECT_CONTEXT", "220000"))
+MAX_CONTEXT_CHARS = int(os.getenv("MAX_PROJECT_CONTEXT", "8000"))
 MAX_CHANGED_FILES = int(os.getenv("MAX_CHANGED_FILES", "40"))
 MAX_FILE_CHARS = int(os.getenv("MAX_GENERATED_FILE_CHARS", "500000"))
 MAX_TOTAL_WRITE_CHARS = int(os.getenv("MAX_TOTAL_WRITE_CHARS", "2000000"))
@@ -184,7 +184,7 @@ def main():
         if candidate and candidate not in models:
             models.append(candidate)
     retries_per_model = max(1, int(os.getenv("GROQ_RETRIES_PER_MODEL", "2")))
-    max_tokens = max(1024, min(65536, int(os.getenv("GROQ_MAX_OUTPUT_TOKENS", "32768"))))
+    max_tokens = max(1024, min(5000, int(os.getenv("GROQ_MAX_OUTPUT_TOKENS", "3800"))))
 
     project_context = collect_project_context(workspace)
     system_prompt = """
@@ -211,6 +211,7 @@ KHI BUILD
 - Asset nội bộ PHẢI dùng đường dẫn tương đối: style.css, ./app.js, assets/logo.svg. Không dùng /style.css vì Preview nằm dưới /preview/<project-id>/.
 - Responsive, dùng được mobile.
 - Chỉ trả các file thực sự cần thay đổi. Mỗi file trong files phải chứa TOÀN BỘ nội dung mới của file.
+- Viết code gọn, tránh comment dài và nội dung lặp để tiết kiệm token; không viết lại file không liên quan.
 - File cần xóa đưa vào delete_files.
 - Không sửa .env, .vibe-meta.json, .git, node_modules hoặc đường dẫn ../.
 - Không giả vờ đã chạy shell, cài package hay deploy; hệ thống này chỉ ghi nội dung file.
@@ -249,7 +250,7 @@ TIN NHẮN / NGỮ CẢNH NGƯỜI DÙNG
                 },
             },
             "max_completion_tokens": max_tokens,
-            "reasoning_effort": os.getenv("GROQ_REASONING_EFFORT", "medium"),
+            "reasoning_effort": os.getenv("GROQ_REASONING_EFFORT", "low"),
         }
         req = urllib.request.Request(
             api_url,
