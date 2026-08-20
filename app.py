@@ -76,7 +76,7 @@ def save_meta(project_id: str, meta: dict):
 
 
 def list_files(root: Path):
-    ignored = {".git", "node_modules", ".venv", "__pycache__"}
+    ignored = {".git", "node_modules", ".venv", "__pycache__", ".vibe-undo"}
     result = []
     if not root.exists():
         return result
@@ -148,6 +148,7 @@ def get_project(project_id: str):
         raise HTTPException(404, "Không tìm thấy project")
     meta = load_meta(project_id)
     meta["files"] = list_files(path)
+    meta["can_undo"] = (path / ".vibe-undo" / "manifest.json").exists()
     return meta
 
 
@@ -175,7 +176,7 @@ def download_project(project_id: str):
         for p in root.rglob("*"):
             if not p.is_file() or p.name == ".vibe-meta.json":
                 continue
-            if any(part in {".git", ".venv", "node_modules", "__pycache__"} for part in p.relative_to(root).parts):
+            if any(part in {".git", ".venv", "node_modules", "__pycache__", ".vibe-undo"} for part in p.relative_to(root).parts):
                 continue
             zf.write(p, p.relative_to(root).as_posix())
     memory.seek(0)
@@ -203,6 +204,8 @@ def chat(project_id: str, body: ChatBody):
         prompt = f"Ngữ cảnh chat gần đây:\n{history_text}\n\nYêu cầu mới:\n{body.message}"
 
     cmd = [sys.executable, str(BASE_DIR / "groq_worker.py"), str(workspace), prompt]
+    worker_env = os.environ.copy()
+    worker_env["VIBE_LATEST_MESSAGE"] = body.message
     try:
         proc = subprocess.run(
             cmd,
@@ -210,7 +213,7 @@ def chat(project_id: str, body: ChatBody):
             capture_output=True,
             text=True,
             timeout=AGENT_TIMEOUT,
-            env=os.environ.copy(),
+            env=worker_env,
         )
     except subprocess.TimeoutExpired:
         raise HTTPException(504, "Groq chạy quá thời gian cho phép")
@@ -258,6 +261,49 @@ def chat(project_id: str, body: ChatBody):
         "deleted": deleted,
         "files": list_files(workspace),
     }
+
+
+@app.post("/api/projects/{project_id}/undo")
+def undo_project(project_id: str):
+    workspace = project_dir(project_id)
+    undo_dir = workspace / ".vibe-undo"
+    manifest_path = undo_dir / "manifest.json"
+    if not manifest_path.exists():
+        raise HTTPException(409, "Chưa có thay đổi nào để hoàn tác")
+    try:
+        manifest = json.loads(manifest_path.read_text("utf-8"))
+        restored = []
+        for entry in manifest.get("files", []):
+            rel = entry.get("path", "")
+            target = safe_project_file(project_id, rel)
+            if entry.get("existed"):
+                backup = undo_dir / "files" / str(entry.get("backup", ""))
+                if not backup.exists():
+                    raise RuntimeError(f"Thiếu bản sao lưu cho {rel}")
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(backup, target)
+            else:
+                if target.exists() and target.is_file():
+                    target.unlink()
+            restored.append(rel)
+        shutil.rmtree(undo_dir, ignore_errors=True)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(500, f"Không thể hoàn tác: {exc}")
+
+    meta = load_meta(project_id)
+    meta.setdefault("messages", []).append({
+        "role": "assistant",
+        "content": "Đã hoàn tác lần sửa code gần nhất.",
+        "action": "undo",
+        "written": restored,
+        "deleted": [],
+        "model": "local-undo",
+    })
+    meta["messages"] = meta["messages"][-40:]
+    save_meta(project_id, meta)
+    return {"ok": True, "restored": restored, "files": list_files(workspace)}
 
 
 @app.get("/preview/{project_id}")

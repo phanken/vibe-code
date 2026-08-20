@@ -1,6 +1,8 @@
 import json
 import os
 import random
+import re
+import shutil
 import sys
 import time
 import urllib.error
@@ -15,7 +17,7 @@ TEXT_EXTENSIONS = {
     ".html", ".htm", ".css", ".js", ".mjs", ".cjs", ".json", ".md", ".txt",
     ".svg", ".xml", ".yaml", ".yml", ".toml", ".py", ".ts", ".tsx", ".jsx",
 }
-IGNORED_PARTS = {".git", "node_modules", ".venv", "__pycache__", "dist", "build"}
+IGNORED_PARTS = {".git", "node_modules", ".venv", "__pycache__", "dist", "build", ".vibe-undo"}
 MAX_CONTEXT_CHARS = int(os.getenv("MAX_PROJECT_CONTEXT", "8000"))
 MAX_CHANGED_FILES = int(os.getenv("MAX_CHANGED_FILES", "40"))
 MAX_FILE_CHARS = int(os.getenv("MAX_GENERATED_FILE_CHARS", "500000"))
@@ -84,6 +86,85 @@ def collect_project_context(workspace: Path) -> str:
     return "".join(chunks) or "(Project hiện chưa có file text.)"
 
 
+
+def latest_user_message() -> str:
+    return os.getenv("VIBE_LATEST_MESSAGE", "").strip()
+
+
+def explicit_build_request(message: str) -> bool:
+    """Conservative local guard: only obvious edit commands count as explicit build."""
+    m = (message or "").strip().lower()
+    patterns = [
+        r"\b(sửa|fix|khắc phục|tạo|thêm|xóa|xoá|đổi|chỉnh|áp dụng|cập nhật|khôi phục|hoàn tác|undo)\b",
+        r"\b(làm lại|sửa luôn|fix luôn|thêm vào|xóa đi|xoá đi|đổi thành)\b",
+    ]
+    return any(re.search(p, m, flags=re.I) for p in patterns)
+
+
+def complaint_without_command(message: str) -> bool:
+    """Detect short Vietnamese bug reports/complaints that must not become destructive edits."""
+    m = (message or "").strip().lower()
+    if not m or explicit_build_request(m):
+        return False
+    complaint_markers = [
+        "sao ", "sao vẫn", "vẫn như", "bị ", "lỗi", "hỏng", "mất ",
+        "không thấy", "không hiện", "không chạy", "trắng", "đen xì", "đen sì",
+        "ẩn hết", "ẩn bố hết", "ẩn mẹ hết", "chán", "lag", "treo",
+    ]
+    return any(x in m for x in complaint_markers) or bool(re.search(r"\b(r|rồi)\s*[.!?]*$", m))
+
+
+def looks_like_hide_all(path: str, content: str) -> bool:
+    if Path(path).suffix.lower() not in {".css", ".html", ".htm"}:
+        return False
+    compact = re.sub(r"\s+", "", content.lower())
+    dangerous = [
+        r"(?:^|[},])(?:html|body|html,body|body,html|\*)\{[^{}]*(?:display:none|visibility:hidden|opacity:0)",
+        r"<body[^>]*style=[\"'][^\"']*(?:display\s*:\s*none|visibility\s*:\s*hidden|opacity\s*:\s*0)",
+    ]
+    return any(re.search(p, compact, flags=re.I) for p in dangerous)
+
+
+def explicitly_requests_hide_all(message: str) -> bool:
+    m = (message or "").strip().lower()
+    return any(x in m for x in [
+        "ẩn toàn bộ trang", "ẩn hết nội dung", "hide entire page", "hide all content",
+        "display none toàn trang", "display:none toàn trang",
+    ])
+
+
+def make_undo_snapshot(workspace: Path, result: AgentResult):
+    """Keep one undo point for the latest build without exposing it to model/preview/download."""
+    undo_dir = workspace / ".vibe-undo"
+    if undo_dir.exists():
+        shutil.rmtree(undo_dir)
+    files_dir = undo_dir / "files"
+    files_dir.mkdir(parents=True, exist_ok=True)
+
+    targets = []
+    seen = set()
+    for rel in [*(x.path for x in result.files), *result.delete_files]:
+        rel = (rel or "").replace("\\", "/").strip()
+        if rel and rel not in seen:
+            seen.add(rel)
+            targets.append(rel)
+
+    manifest = []
+    for idx, rel in enumerate(targets):
+        target = safe_target(workspace, rel)
+        existed = target.exists() and target.is_file()
+        entry = {"path": rel, "existed": existed, "backup": None}
+        if existed:
+            backup_name = f"{idx:04d}.bak"
+            shutil.copy2(target, files_dir / backup_name)
+            entry["backup"] = backup_name
+        manifest.append(entry)
+
+    (undo_dir / "manifest.json").write_text(
+        json.dumps({"files": manifest}, ensure_ascii=False, indent=2), "utf-8"
+    )
+
+
 def apply_result(workspace: Path, result: AgentResult):
     # Chat tuyệt đối không được ghi file, kể cả model lỡ trả file.
     if result.action != "build":
@@ -95,6 +176,8 @@ def apply_result(workspace: Path, result: AgentResult):
     total = 0
     written = []
     deleted = []
+
+    make_undo_snapshot(workspace, result)
 
     for item in result.files:
         if len(item.content) > MAX_FILE_CHARS:
@@ -196,6 +279,8 @@ QUY TẮC CHỌN ACTION
 2. action=\"build\" khi người dùng yêu cầu rõ ràng tạo/sửa/thêm/xóa/đổi/fix/áp dụng code hoặc giao diện.
 3. Có thể dùng ngữ cảnh hội thoại. Sau một đề xuất, nếu người dùng nói \"sửa luôn đi\" thì là build.
 4. Nếu mơ hồ, ưu tiên chat để không tự ý sửa project.
+5. Câu than phiền/báo lỗi KHÔNG phải lệnh sửa nếu không có động từ yêu cầu rõ ràng. Ví dụ: "sao vẫn như cũ", "bị trắng rồi", "ẩn bố hết r", "không hiện gì" => action="chat". Tuyệt đối không hiểu "ẩn bố hết r" là yêu cầu ẩn trang.
+6. Chỉ build khi người dùng thực sự yêu cầu như "sửa lỗi này", "khắc phục đi", "đổi...", "thêm...", "xóa...".
 
 KHI CHAT
 - Trả lời tự nhiên bằng tiếng Việt.
@@ -289,6 +374,31 @@ TIN NHẮN / NGỮ CẢNH NGƯỜI DÙNG
                 if not content:
                     raise RuntimeError("Groq không trả về nội dung")
                 result = AgentResult.model_validate_json(content)
+
+                latest = latest_user_message()
+                if complaint_without_command(latest) and result.action == "build":
+                    result = AgentResult(
+                        action="chat",
+                        answer=(
+                            "Mình hiểu đây là bạn đang báo lỗi/chê kết quả, chưa phải lệnh yêu cầu sửa. "
+                            "Bạn chỉ cần nói rõ như ‘sửa lỗi này đi’ hoặc mô tả phần muốn sửa, mình mới thay đổi file."
+                        ),
+                        files=[],
+                        delete_files=[],
+                    )
+
+                if result.action == "build" and not explicitly_requests_hide_all(latest):
+                    if any(looks_like_hide_all(x.path, x.content) for x in result.files):
+                        result = AgentResult(
+                            action="chat",
+                            answer=(
+                                "Mình đã chặn thay đổi này vì code đề xuất có thể ẩn toàn bộ trang Preview. "
+                                "Nếu bạn muốn sửa giao diện, hãy mô tả phần cần sửa; mình sẽ giữ nội dung trang hiển thị."
+                            ),
+                            files=[],
+                            delete_files=[],
+                        )
+
                 written, deleted = apply_result(workspace, result)
                 emit({
                     "ok": True,

@@ -12,6 +12,9 @@ Web vibe-coding dùng **Groq API** ở backend Python/FastAPI, chạy được t
 
 - Tạo/xóa nhiều project.
 - Chat bình thường không đụng file.
+- Guard chống hiểu nhầm câu than lỗi thành lệnh Build (ví dụ: “ẩn bố hết r”).
+- Chặn code vô tình ẩn toàn bộ Preview.
+- Nút **Hoàn tác** khôi phục lần sửa code gần nhất.
 - Yêu cầu tạo/sửa/thêm/xóa/fix -> AI cập nhật file.
 - Giữ lịch sử hội thoại gần đây.
 - Preview `index.html` và asset tương đối đúng đường dẫn.

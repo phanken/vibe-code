@@ -29,7 +29,7 @@ async function selectProject(id){
   state.projectId=id; await loadProjects();
   const p = await api(`/api/projects/${id}`);
   $('#projectTitle').textContent=p.name;
-  $('#prompt').disabled=false; $('#sendBtn').disabled=false; $('#deleteProject').disabled=false; $('#downloadProject').disabled=false;
+  $('#prompt').disabled=false; $('#sendBtn').disabled=false; $('#deleteProject').disabled=false; $('#downloadProject').disabled=false; $('#undoProject').disabled=!p.can_undo;
   $('#status').textContent='Sẵn sàng • hỏi hoặc yêu cầu sửa code';
   renderMessages(p.messages||[]); renderFiles(p.files||[]); refreshPreview();
 }
@@ -45,6 +45,7 @@ function actionMeta(m){
     return `<div class="action-badge build">⚡ Sửa project${parts.length?` • ${esc(parts.join(' • '))}`:''}</div>`;
   }
   if(m.action==='chat') return '<div class="action-badge chat">💬 Trả lời</div>';
+  if(m.action==='undo') return '<div class="action-badge undo">↶ Hoàn tác</div>';
   return '';
 }
 
@@ -87,6 +88,18 @@ $('#downloadProject').onclick=()=>{
   if(state.projectId) window.location.href=`/api/projects/${state.projectId}/download`;
 };
 
+$('#undoProject').onclick=async()=>{
+  if(!state.projectId)return;
+  if(!confirm('Hoàn tác lần sửa code gần nhất?'))return;
+  try{
+    const d=await api(`/api/projects/${state.projectId}/undo`,{method:'POST'});
+    const updated=await api(`/api/projects/${state.projectId}`);
+    renderMessages(updated.messages||[]);renderFiles(d.files||[]);refreshPreview();
+    $('#undoProject').disabled=true;
+    $('#status').textContent=`Đã hoàn tác${(d.restored||[]).length?` • ${(d.restored||[]).length} file`:''}`;
+  }catch(e){alert(e.message)}
+};
+
 $('#chatForm').onsubmit=async(e)=>{
   e.preventDefault(); if(!state.projectId)return;
   const message=$('#prompt').value.trim(); if(!message)return;
@@ -101,6 +114,7 @@ $('#chatForm').onsubmit=async(e)=>{
       refreshPreview();
       const n=(d.written||[]).length+(d.deleted||[]).length;
       $('#status').textContent=`Đã sửa project${n?` • ${n} thay đổi`:''} • ${d.model||'Groq'}`;
+      $('#undoProject').disabled=false;
     }else{
       $('#status').textContent=`Đã trả lời • ${d.model||'Groq'}`;
     }
