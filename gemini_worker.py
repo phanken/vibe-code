@@ -1,6 +1,8 @@
 import json
 import os
 import sys
+import random
+import time
 from pathlib import Path
 from typing import List
 
@@ -124,7 +126,17 @@ def main():
         })
         return
 
-    model = os.getenv("GEMINI_MODEL", "gemini-3.7-flash").strip() or "gemini-3.7-flash"
+    primary_model = os.getenv("GEMINI_MODEL", "gemini-3.6-flash").strip() or "gemini-3.6-flash"
+    fallback_raw = os.getenv(
+        "GEMINI_FALLBACK_MODELS",
+        "gemini-3.7-flash,gemini-3.5-flash,gemini-3.5-flash-lite",
+    )
+    models = []
+    for candidate in [primary_model, *fallback_raw.split(",")]:
+        candidate = candidate.strip()
+        if candidate and candidate not in models:
+            models.append(candidate)
+    retries_per_model = max(1, int(os.getenv("GEMINI_RETRIES_PER_MODEL", "3")))
 
     try:
         from google import genai
@@ -162,31 +174,80 @@ YÊU CẦU NGƯỜI DÙNG
 {prompt}
 """.strip()
 
-    try:
-        client = genai.Client(api_key=api_key)
-        response = client.models.generate_content(
-            model=model,
-            contents=instruction,
-            config=types.GenerateContentConfig(
-                response_mime_type="application/json",
-                response_schema=BuildResult,
-                temperature=0.2,
-                max_output_tokens=32768,
-            ),
-        )
-        if not response.text:
-            raise RuntimeError("Gemini không trả về nội dung")
-        result = BuildResult.model_validate_json(response.text)
-        written, deleted = apply_result(workspace, result)
-        emit({
-            "ok": True,
-            "text": result.summary or "Đã cập nhật project.",
-            "model": model,
-            "written": written,
-            "deleted": deleted,
-        })
-    except Exception as exc:
-        emit({"ok": False, "error": f"Gemini API lỗi: {exc}"})
+    def status_code_from_exception(exc):
+        for attr in ("code", "status_code"):
+            value = getattr(exc, attr, None)
+            if isinstance(value, int):
+                return value
+        text = str(exc).upper()
+        for code in (429, 500, 503, 504):
+            if str(code) in text:
+                return code
+        return None
+
+    retryable_codes = {429, 500, 503, 504}
+    client = genai.Client(api_key=api_key)
+    errors_seen = []
+
+    for model_index, model in enumerate(models):
+        for attempt in range(1, retries_per_model + 1):
+            try:
+                response = client.models.generate_content(
+                    model=model,
+                    contents=instruction,
+                    config=types.GenerateContentConfig(
+                        response_mime_type="application/json",
+                        response_schema=BuildResult,
+                        max_output_tokens=32768,
+                    ),
+                )
+                if not response.text:
+                    raise RuntimeError("Gemini không trả về nội dung")
+                result = BuildResult.model_validate_json(response.text)
+                written, deleted = apply_result(workspace, result)
+                emit({
+                    "ok": True,
+                    "text": result.summary or "Đã cập nhật project.",
+                    "model": model,
+                    "written": written,
+                    "deleted": deleted,
+                    "fallback_used": model != primary_model,
+                })
+                return
+            except Exception as exc:
+                code = status_code_from_exception(exc)
+                errors_seen.append(f"{model} lần {attempt}: {exc}")
+
+                # Lỗi cấu hình/quyền truy cập thì retry hay đổi model cũng không giúp.
+                if code not in retryable_codes:
+                    emit({
+                        "ok": False,
+                        "error": f"Gemini API lỗi: {exc}",
+                        "model": model,
+                        "status_code": code,
+                    })
+                    return
+
+                # Retry cùng model với exponential backoff + jitter.
+                if attempt < retries_per_model:
+                    delay = min(8.0, (2 ** (attempt - 1)) + random.uniform(0.2, 0.8))
+                    time.sleep(delay)
+                    continue
+
+                # Hết retry của model này: tự chuyển model dự phòng.
+                if model_index < len(models) - 1:
+                    break
+
+    last_error = errors_seen[-1] if errors_seen else "Không rõ lỗi"
+    emit({
+        "ok": False,
+        "error": (
+            "Gemini đang quá tải hoặc tạm hết quota sau khi đã retry và đổi model. "
+            f"Chi tiết cuối: {last_error}"
+        ),
+        "tried_models": models,
+        "status_code": 503,
+    })
 
 
 if __name__ == "__main__":

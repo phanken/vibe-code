@@ -19,7 +19,7 @@ STATIC_DIR = BASE_DIR / "static"
 WORKSPACES_DIR = Path(os.getenv("WORKSPACES_DIR", str(BASE_DIR / "workspaces"))).resolve()
 WORKSPACES_DIR.mkdir(parents=True, exist_ok=True)
 AGENT_TIMEOUT = int(os.getenv("AGENT_TIMEOUT", "180"))
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.7-flash")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.6-flash")
 
 app = FastAPI(title="Gemini Vibe Web", version="0.2.0")
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
@@ -102,6 +102,7 @@ def health():
         "ok": True,
         "provider": "Google Gemini API",
         "model": GEMINI_MODEL,
+        "fallback_models": os.getenv("GEMINI_FALLBACK_MODELS", "gemini-3.7-flash,gemini-3.5-flash,gemini-3.5-flash-lite"),
         "gemini_configured": bool(os.getenv("GEMINI_API_KEY", "").strip()),
     }
 
@@ -227,7 +228,9 @@ def chat(project_id: str, body: ChatBody):
         detail = (proc.stderr or proc.stdout or "Không có phản hồi từ worker")[-5000:]
         raise HTTPException(500, detail)
     if not payload.get("ok"):
-        raise HTTPException(500, payload.get("error", "Gemini API lỗi"))
+        code = payload.get("status_code")
+        http_status = code if isinstance(code, int) and 400 <= code <= 599 else 500
+        raise HTTPException(http_status, payload.get("error", "Gemini API lỗi"))
 
     answer = payload.get("text", "Đã xử lý xong.")
     meta.setdefault("messages", []).extend([

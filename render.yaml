@@ -11,7 +11,11 @@ services:
       - key: GEMINI_API_KEY
         sync: false
       - key: GEMINI_MODEL
-        value: gemini-3.7-flash
+        value: gemini-3.6-flash
+      - key: GEMINI_FALLBACK_MODELS
+        value: gemini-3.7-flash,gemini-3.5-flash,gemini-3.5-flash-lite
+      - key: GEMINI_RETRIES_PER_MODEL
+        value: "3"
       - key: AGENT_TIMEOUT
         value: "180"
       - key: MAX_PROJECT_CONTEXT

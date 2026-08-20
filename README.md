@@ -120,3 +120,8 @@ Backend chỉ cho ghi file bên trong workspace và chặn `.env`, `.git`, `node
 ## Ghi chú
 
 Preview hiện ưu tiên web tĩnh HTML/CSS/JS để xem ngay. Các project cần Node.js build, database hoặc server riêng sẽ cần thêm một lớp sandbox/build runner ở phiên bản sau.
+
+
+## Chống lỗi Gemini 503 / quá tải
+
+Bản này mặc định dùng `gemini-3.6-flash`. Khi Gemini trả 429/500/503/504, worker sẽ retry với exponential backoff rồi tự chuyển lần lượt qua các model trong `GEMINI_FALLBACK_MODELS`. Có thể chỉnh trên Render Environment.
