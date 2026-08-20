@@ -21,7 +21,7 @@ WORKSPACES_DIR.mkdir(parents=True, exist_ok=True)
 AGENT_TIMEOUT = int(os.getenv("AGENT_TIMEOUT", "180"))
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.6-flash")
 
-app = FastAPI(title="Gemini Vibe Web", version="0.2.0")
+app = FastAPI(title="Gemini Vibe Web", version="0.3.0")
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 
@@ -233,18 +233,29 @@ def chat(project_id: str, body: ChatBody):
         raise HTTPException(http_status, payload.get("error", "Gemini API lỗi"))
 
     answer = payload.get("text", "Đã xử lý xong.")
+    action = payload.get("action", "chat")
+    written = payload.get("written", [])
+    deleted = payload.get("deleted", [])
     meta.setdefault("messages", []).extend([
         {"role": "user", "content": body.message},
-        {"role": "assistant", "content": answer},
+        {
+            "role": "assistant",
+            "content": answer,
+            "action": action,
+            "written": written,
+            "deleted": deleted,
+            "model": payload.get("model", GEMINI_MODEL),
+        },
     ])
     meta["messages"] = meta["messages"][-40:]
     save_meta(project_id, meta)
     return {
         "ok": True,
         "answer": answer,
+        "action": action,
         "model": payload.get("model", GEMINI_MODEL),
-        "written": payload.get("written", []),
-        "deleted": payload.get("deleted", []),
+        "written": written,
+        "deleted": deleted,
         "files": list_files(workspace),
     }
 

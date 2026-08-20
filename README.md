@@ -1,34 +1,72 @@
-# Gemini Vibe Web
+# Gemini Vibe Web — Chat + Build
 
-Web MVP kiểu Lovable/Replit dùng **Google Gemini API** ở backend Python. Bản này được thiết kế để chạy trên **Render Free** mà không cần đăng nhập Antigravity trên server.
+Web vibe-coding dùng **Google Gemini API** ở backend Python, thiết kế để chạy trên Render. Bản này có **một ô chat duy nhất**: Gemini tự quyết định lúc nào chỉ trò chuyện và lúc nào cần sửa file project.
 
 ## Chức năng
 
 - Tạo nhiều project riêng.
-- Chat tiếng Việt để Gemini tạo/sửa code.
-- Preview `index.html` ngay bên phải.
+- **Chat bình thường**: hỏi đáp, giải thích code, xin ý tưởng, tìm nguyên nhân lỗi — không tự ý sửa file.
+- **Build tự động**: khi bạn yêu cầu tạo/sửa/thêm/xóa/đổi/fix, Gemini cập nhật file project.
+- Giữ lịch sử hội thoại để hiểu câu nối tiếp như: `sửa luôn đi`, `đổi nút đó thành màu xanh`.
+- Preview `index.html` ngay bên phải; chỉ refresh tự động khi AI thực sự sửa project.
 - Danh sách file + xem nội dung file.
-- Nút **Tải ZIP** để tải code project đã tạo.
-- Gemini chỉ trả về nội dung file; backend kiểm tra đường dẫn trước khi ghi. AI không được quyền chạy shell trên server.
-- Mặc định dùng `gemini-3.7-flash` và có thể đổi bằng biến `GEMINI_MODEL`.
+- Nút **Tải ZIP** project.
+- Nếu Gemini gặp 429/500/503/504, backend retry rồi tự đổi model dự phòng.
+- AI không được chạy shell. Backend kiểm tra đường dẫn trước khi ghi file và chặn `.env`, `.git`, `node_modules`, `../`.
 
-## 1. Lấy Gemini API key miễn phí
+## Cách dùng
 
-Tạo API key trong Google AI Studio:
+Ví dụ chỉ trò chuyện:
 
-https://aistudio.google.com/apikey
+- `Bạn đang dùng model gì?`
+- `Giải thích file app.js cho tôi`
+- `Theo bạn trang này nên thêm chức năng gì?`
+- `Lỗi này có thể do đâu?`
 
-Không đưa API key vào file code hoặc GitHub.
+Các câu sẽ sửa project:
 
-## 2. Chạy local
+- `Tạo landing page xem phim kiểu Netflix`
+- `Thêm menu mobile`
+- `Sửa lỗi nút đăng nhập không bấm được`
+- `Đổi nền thành tối`
+- Sau một gợi ý: `ok sửa luôn đi`
 
-Yêu cầu Python 3.11+ (khuyến nghị Python 3.12).
+Nếu yêu cầu chưa rõ là muốn áp dụng thay đổi hay chỉ hỏi, AI được hướng dẫn **ưu tiên trả lời, không sửa file**.
+
+## Deploy Render
+
+1. Upload toàn bộ project lên GitHub.
+2. Render -> **New -> Blueprint** hoặc **Web Service**.
+3. Kết nối repository.
+4. Trong Environment thêm:
+
+```text
+GEMINI_API_KEY=API_KEY_CUA_BAN
+```
+
+`render.yaml` đã có sẵn build/start command.
+
+### Environment mặc định
+
+```text
+GEMINI_MODEL=gemini-3.6-flash
+GEMINI_FALLBACK_MODELS=gemini-3.7-flash,gemini-3.5-flash,gemini-3.5-flash-lite
+GEMINI_RETRIES_PER_MODEL=3
+AGENT_TIMEOUT=180
+MAX_PROJECT_CONTEXT=240000
+```
+
+Nếu Render của bạn đã có biến `GEMINI_MODEL` từ bản cũ, giá trị trong Environment của Render sẽ ghi đè file `render.yaml`; có thể sửa trực tiếp ở Render.
+
+## Chạy local
+
+Python 3.11+:
 
 ```bash
 python -m venv .venv
 ```
 
-Windows:
+Windows CMD:
 
 ```bat
 .venv\Scripts\activate
@@ -37,91 +75,36 @@ set GEMINI_API_KEY=YOUR_KEY_HERE
 uvicorn app:app --reload --port 8000
 ```
 
-PowerShell:
+Mở `http://127.0.0.1:8000`.
 
-```powershell
-.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-$env:GEMINI_API_KEY="YOUR_KEY_HERE"
-uvicorn app:app --reload --port 8000
-```
+## Cách phân biệt Chat / Build
 
-Mở: `http://127.0.0.1:8000`
-
-## 3. Deploy Render Free
-
-### Cách dễ nhất: GitHub + Render
-
-1. Giải nén project này.
-2. Tạo repository GitHub mới.
-3. Upload toàn bộ file trong project lên repository.
-4. Vào Render -> New -> Blueprint hoặc Web Service.
-5. Kết nối repository.
-6. Nếu dùng `render.yaml`, Render sẽ nhận sẵn build/start command.
-7. Trong **Environment**, thêm:
-
-```text
-GEMINI_API_KEY=API_KEY_CUA_BAN
-```
-
-8. Deploy.
-
-Build command:
-
-```text
-pip install -r requirements.txt
-```
-
-Start command:
-
-```text
-uvicorn app:app --host 0.0.0.0 --port $PORT
-```
-
-Sau khi deploy xong, góc trái giao diện phải hiện kiểu:
-
-```text
-gemini-3.7-flash • API OK
-```
-
-Nếu hiện `Thiếu GEMINI_API_KEY`, vào Render -> Environment kiểm tra lại key rồi redeploy.
-
-## Biến môi trường
-
-- `GEMINI_API_KEY`: bắt buộc.
-- `GEMINI_MODEL`: mặc định `gemini-3.7-flash`.
-- `AGENT_TIMEOUT`: mặc định 180 giây.
-- `MAX_PROJECT_CONTEXT`: lượng source code tối đa gửi vào model, mặc định 240000 ký tự.
-- `WORKSPACES_DIR`: nơi lưu project.
-
-## Lưu ý Render Free
-
-Filesystem của Render Free không phải nơi lưu project lâu dài. Restart/redeploy có thể làm mất project đã tạo. Bản MVP có nút **Tải ZIP** để tải code về máy.
-
-Nếu muốn lưu project vĩnh viễn, bước sau nên thêm MongoDB/S3/GitHub storage hoặc persistent disk.
-
-## Cách AI sửa code
-
-Backend đọc các file text hiện có trong project, gửi context + yêu cầu của bạn cho Gemini, sau đó yêu cầu model trả JSON dạng:
+Gemini trả JSON theo schema có trường `action`:
 
 ```json
 {
-  "summary": "Đã làm lại giao diện trang chủ",
+  "action": "chat",
+  "answer": "...",
+  "files": [],
+  "delete_files": []
+}
+```
+
+hoặc:
+
+```json
+{
+  "action": "build",
+  "answer": "Đã thêm menu mobile.",
   "files": [
-    {"path": "index.html", "content": "..."},
-    {"path": "style.css", "content": "..."}
+    {"path": "index.html", "content": "..."}
   ],
   "delete_files": []
 }
 ```
 
-Backend chỉ cho ghi file bên trong workspace và chặn `.env`, `.git`, `node_modules`, `../`.
+Quan trọng: nếu `action=chat`, backend **bỏ qua mọi file** mà model lỡ trả về, nên một câu hỏi bình thường không thể vô tình ghi đè project.
 
-## Ghi chú
+## Lưu ý Render Free
 
-Preview hiện ưu tiên web tĩnh HTML/CSS/JS để xem ngay. Các project cần Node.js build, database hoặc server riêng sẽ cần thêm một lớp sandbox/build runner ở phiên bản sau.
-
-
-## Chống lỗi Gemini 503 / quá tải
-
-Bản này mặc định dùng `gemini-3.6-flash`. Khi Gemini trả 429/500/503/504, worker sẽ retry với exponential backoff rồi tự chuyển lần lượt qua các model trong `GEMINI_FALLBACK_MODELS`. Có thể chỉnh trên Render Environment.
+Filesystem của Render Free có thể mất dữ liệu sau restart/redeploy. Hãy dùng **Tải ZIP** để lưu project. Nếu cần lưu vĩnh viễn, có thể bổ sung MongoDB/S3/GitHub storage sau.

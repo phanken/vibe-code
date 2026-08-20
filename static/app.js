@@ -30,14 +30,31 @@ async function selectProject(id){
   const p = await api(`/api/projects/${id}`);
   $('#projectTitle').textContent=p.name;
   $('#prompt').disabled=false; $('#sendBtn').disabled=false; $('#deleteProject').disabled=false; $('#downloadProject').disabled=false;
-  $('#status').textContent='Sẵn sàng';
+  $('#status').textContent='Sẵn sàng • hỏi hoặc yêu cầu sửa code';
   renderMessages(p.messages||[]); renderFiles(p.files||[]); refreshPreview();
+}
+
+function actionMeta(m){
+  if(m.role!=='assistant') return '';
+  if(m.action==='build'){
+    const changed=(m.written||[]).length;
+    const deleted=(m.deleted||[]).length;
+    const parts=[];
+    if(changed) parts.push(`${changed} file đã cập nhật`);
+    if(deleted) parts.push(`${deleted} file đã xóa`);
+    return `<div class="action-badge build">⚡ Sửa project${parts.length?` • ${esc(parts.join(' • '))}`:''}</div>`;
+  }
+  if(m.action==='chat') return '<div class="action-badge chat">💬 Trả lời</div>';
+  return '';
 }
 
 function renderMessages(messages){
   const box=$('#messages');
-  if(!messages.length){box.innerHTML='<div class="empty"><div class="spark">✦</div><h2>Bắt đầu build</h2><p>Hãy mô tả giao diện và chức năng bạn muốn.</p></div>';return;}
-  box.innerHTML=messages.map(m=>`<div class="message ${m.role}"><div class="role">${m.role==='user'?'Bạn':'Gemini'}</div>${esc(m.content)}</div>`).join('');
+  if(!messages.length){
+    box.innerHTML='<div class="empty"><div class="spark">✦</div><h2>Chat & vibe code</h2><p>Hỏi Gemini bình thường hoặc bảo nó tạo/sửa web. AI sẽ tự chọn khi nào cần thay đổi file.</p></div>';
+    return;
+  }
+  box.innerHTML=messages.map(m=>`<div class="message ${m.role}"><div class="role">${m.role==='user'?'Bạn':'Gemini'}</div>${actionMeta(m)}<div class="message-text">${esc(m.content)}</div></div>`).join('');
   box.scrollTop=box.scrollHeight;
 }
 
@@ -74,15 +91,29 @@ $('#chatForm').onsubmit=async(e)=>{
   e.preventDefault(); if(!state.projectId)return;
   const message=$('#prompt').value.trim(); if(!message)return;
   const p=await api(`/api/projects/${state.projectId}`);
-  renderMessages([...(p.messages||[]),{role:'user',content:message},{role:'assistant',content:'Đang tạo/sửa code…'}]);
-  $('#prompt').value=''; $('#prompt').disabled=true; $('#sendBtn').disabled=true; $('#status').textContent='Gemini đang làm việc…';
+  renderMessages([...(p.messages||[]),{role:'user',content:message},{role:'assistant',content:'Đang suy nghĩ…'}]);
+  $('#prompt').value=''; $('#prompt').disabled=true; $('#sendBtn').disabled=true; $('#status').textContent='Gemini đang xử lý…';
   try{
     const d=await api(`/api/projects/${state.projectId}/chat`,{method:'POST',body:JSON.stringify({message})});
     const updated=await api(`/api/projects/${state.projectId}`);
-    renderMessages(updated.messages||[]);renderFiles(d.files||[]);refreshPreview();$('#status').textContent=`Hoàn tất • ${d.model||'Gemini'}`;
+    renderMessages(updated.messages||[]);renderFiles(d.files||[]);
+    if(d.action==='build'){
+      refreshPreview();
+      const n=(d.written||[]).length+(d.deleted||[]).length;
+      $('#status').textContent=`Đã sửa project${n?` • ${n} thay đổi`:''} • ${d.model||'Gemini'}`;
+    }else{
+      $('#status').textContent=`Đã trả lời • ${d.model||'Gemini'}`;
+    }
   }catch(err){alert(err.message);$('#status').textContent='Có lỗi';}
   finally{$('#prompt').disabled=false;$('#sendBtn').disabled=false;$('#prompt').focus();}
 };
+
+$('#prompt').addEventListener('keydown',e=>{
+  if(e.key==='Enter'&&!e.shiftKey){
+    e.preventDefault();
+    if(!$('#sendBtn').disabled) $('#chatForm').requestSubmit();
+  }
+});
 
 $('#refreshPreview').onclick=refreshPreview;
 document.querySelectorAll('.tab').forEach(btn=>btn.onclick=()=>{
