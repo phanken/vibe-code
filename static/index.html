@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Gemini Vibe Web</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand"><span class="logo">G</span><div><b>Gemini</b><small>Vibe Web</small></div></div>
+    <button id="newProject" class="primary full">＋ Project mới</button>
+    <div class="section-label">PROJECTS</div>
+    <div id="projects" class="projects"></div>
+    <div class="sidebar-foot"><span class="dot"></span><span id="providerStatus">Đang kiểm tra Gemini…</span></div>
+  </aside>
+
+  <main class="chat-panel">
+    <header>
+      <div><h1 id="projectTitle">Chọn project</h1><p>Gemini tạo và sửa file trong workspace</p></div>
+      <div class="header-actions">
+        <button id="downloadProject" class="ghost" disabled>Tải ZIP</button>
+        <button id="deleteProject" class="ghost danger" disabled>Xóa</button>
+      </div>
+    </header>
+    <div id="messages" class="messages">
+      <div class="empty"><div class="spark">✦</div><h2>Build bằng mô tả</h2><p>Ví dụ: “Tạo landing page xem phim kiểu Netflix, responsive, có menu mobile.”</p></div>
+    </div>
+    <form id="chatForm" class="composer">
+      <textarea id="prompt" placeholder="Mô tả website hoặc thay đổi bạn muốn..." rows="3" disabled></textarea>
+      <div class="composer-bottom"><span id="status">Chưa chọn project</span><button class="primary" id="sendBtn" disabled>Gửi ↗</button></div>
+    </form>
+  </main>
+
+  <section class="work-panel">
+    <div class="tabs"><button class="tab active" data-tab="preview">Preview</button><button class="tab" data-tab="files">Files</button><button id="refreshPreview" class="icon-btn" title="Refresh">↻</button></div>
+    <div id="previewTab" class="tab-content active"><iframe id="previewFrame" title="Preview" sandbox="allow-scripts allow-forms allow-modals"></iframe></div>
+    <div id="filesTab" class="tab-content files-layout"><div id="fileList" class="file-list"></div><pre id="fileContent" class="file-content">Chọn một file để xem.</pre></div>
+  </section>
+</div>
+<script src="/static/app.js"></script>
+</body>
+</html>
