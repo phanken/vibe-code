@@ -190,6 +190,7 @@ KHI ACTION="build"
 - answer là lời trả lời ngắn, tự nhiên, nói rõ đã làm gì.
 - Ưu tiên HTML/CSS/JavaScript thuần để Preview chạy ngay, không cần npm build, trừ khi project hiện tại dùng công nghệ khác hoặc người dùng yêu cầu khác.
 - File vào chính nên là index.html ở thư mục gốc nếu đây là web tĩnh.
+- Khi liên kết asset nội bộ trong HTML/CSS/JS, PHẢI dùng đường dẫn tương đối như style.css, css/style.css, app.js hoặc ./assets/logo.svg; KHÔNG dùng đường dẫn bắt đầu bằng / như /style.css vì Preview chạy dưới /preview/<project-id>/.
 - Giao diện responsive và dùng được trên mobile.
 - Khi sửa project đã có, chỉ trả về các file thực sự cần tạo/thay thế; mỗi file phải chứa TOÀN BỘ nội dung mới của file đó.
 - Nếu cần xóa file cũ, ghi đường dẫn vào delete_files.

@@ -10,7 +10,7 @@ import zipfile
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Query
-from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -261,6 +261,14 @@ def chat(project_id: str, body: ChatBody):
 
 
 @app.get("/preview/{project_id}")
+def preview_root_redirect(project_id: str):
+    # Dấu / cuối rất quan trọng: nếu không có, href="style.css" sẽ bị
+    # trình duyệt resolve thành /preview/style.css thay vì file của project.
+    project_dir(project_id)  # validate project id
+    return RedirectResponse(url=f"/preview/{project_id}/", status_code=307)
+
+
+@app.get("/preview/{project_id}/")
 def preview_root(project_id: str):
     target = safe_project_file(project_id, "index.html")
     if not target.exists():

@@ -70,7 +70,7 @@ async function openFile(path){
 
 function refreshPreview(){
   if(!state.projectId)return;
-  $('#previewFrame').src=`/preview/${state.projectId}?t=${Date.now()}`;
+  $('#previewFrame').src=`/preview/${state.projectId}/?t=${Date.now()}`;
 }
 
 $('#newProject').onclick=async()=>{
